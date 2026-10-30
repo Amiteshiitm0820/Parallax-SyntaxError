@@ -1,25 +1,31 @@
 """Fast rule-based signal extraction. No LLM calls here.
 
-Owner: teammate A.
+Owner: teammate.
 
-Each detector returns a list of Signal objects. The analyzer passes these to the
-LLM as hints and uses them as a floor for the risk score.
+Each detector returns Signal objects. The analyzer passes them to the LLM as
+hints and uses their weights as a score floor.
 """
 import re
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
-URL_RE = re.compile(r"(?:https?://|www\.)[^\s<>\"']+|\b[a-z0-9-]+\.[a-z]{2,}(?:/[^\s]*)?", re.IGNORECASE)
+URL_RE = re.compile(
+    r"(?:https?://|www\.)[^\s<>\"']+|\b[a-z0-9-]+(?:\.[a-z0-9-]+)+(?:/[^\s]*)?",
+    re.IGNORECASE,
+)
 
-# Domains that are official for Indian banks/government. Extend as needed.
 OFFICIAL_DOMAINS = {
     "sbi.co.in", "onlinesbi.sbi", "yonobysbi.com",
-    "hdfcbank.com", "icicibank.com", "axisbank.com", "npci.org.in",
-    "incometax.gov.in", "uidai.gov.in", "gov.in", "nic.in",
+    "hdfcbank.com", "icicibank.com", "axisbank.com",
+    "paytm.com", "phonepe.com", "amazon.in", "flipkart.com", "cricbuzz.com",
+    "npci.org.in", "incometax.gov.in", "uidai.gov.in", "indiapost.gov.in",
+    "gov.in", "nic.in",
 }
 
-# Top-level domains commonly abused in phishing campaigns.
-SUSPICIOUS_TLDS = {"xyz", "top", "click", "link", "buzz", "rest", "icu", "tk", "ml", "ga", "cf"}
+SUSPICIOUS_TLDS = {
+    "xyz", "top", "click", "win", "bid", "club", "site", "online",
+    "support", "info", "cc", "icu", "biz", "work", "link", "tk", "ml", "ga", "cf",
+}
 
 URGENCY_PATTERNS = [
     r"\burgent(ly)?\b",
@@ -30,20 +36,29 @@ URGENCY_PATTERNS = [
     r"\bsuspend(ed)?\b",
     r"\bexpire[sd]?\b",
     r"\blast (warning|chance)\b",
+    r"\bfinal notice\b",
+    r"\bpower cut-?off\b|\belectricity cut\b",
+    r"\bturant\b",
+    r"\bjaldi\b",
+    r"\bbandh ho jayega\b",
 ]
 
 CREDENTIAL_PATTERNS = [
     r"\b(verify|update|confirm|re-?activate)\b.{0,30}\b(kyc|account|details|password|otp|pin|upi)\b",
     r"\b(share|send|enter|provide)\b.{0,20}\b(otp|pin|password|cvv|card number)\b",
     r"\bkyc\b",
+    r"\botp\b",
+    r"\bupi pin\b|\bmpin\b|\bcvv\b",
+    r"\bpan card verification\b|\baadhaar? (card )?update\b",
 ]
 
 REWARD_PATTERNS = [
     r"\bcongratulations\b",
     r"\byou (have )?won\b",
     r"\bcashback\b",
+    r"\blottery\b|\blucky draw\b",
     r"\bfree (gift|recharge|prize)\b",
-    r"\bclaim (now|your)\b",
+    r"\bclaim (now|your|bonus)\b",
 ]
 
 
@@ -52,7 +67,7 @@ class Signal:
     quote: str
     type: str
     reason: str
-    weight: int  # contribution to the rule-based score, 0-100
+    weight: int  # contribution to the rule score, 0-100
 
 
 def _find_all(patterns: list[str], text: str) -> list[str]:
@@ -64,11 +79,7 @@ def _find_all(patterns: list[str], text: str) -> list[str]:
 
 
 def extract_urls(text: str) -> list[str]:
-    urls = []
-    for raw in URL_RE.findall(text):
-        candidate = raw.rstrip(".,;:!?)")
-        urls.append(candidate)
-    return urls
+    return [raw.rstrip(".,;:!?)") for raw in URL_RE.findall(text)]
 
 
 def _host(url: str) -> str:
@@ -91,7 +102,7 @@ def check_domains(text: str) -> list[Signal]:
             signals.append(Signal(
                 quote=url,
                 type="Domain Inconsistency",
-                reason=f"Uses the '.{tld}' domain, which is commonly abused for phishing and is not an official bank or government domain.",
+                reason=f"Uses the '.{tld}' domain, which is often abused for phishing and is not an official domain.",
                 weight=30,
             ))
         elif re.search(r"\b(sbi|hdfc|icici|axis|kyc|upi|bank|update|verify)\b", host):
@@ -122,7 +133,7 @@ def check_urgency(text: str) -> list[Signal]:
 def check_credentials(text: str) -> list[Signal]:
     return [
         Signal(quote=q, type="Credential Harvesting",
-               reason="Asks for banking details, OTP, or KYC verification, which legitimate institutions do not request by message link.",
+               reason="Asks for banking details, OTP, or KYC verification, which legitimate institutions do not request through message links.",
                weight=25)
         for q in _find_all(CREDENTIAL_PATTERNS, text)
     ]
@@ -137,7 +148,9 @@ def check_rewards(text: str) -> list[Signal]:
 
 
 def extract_signals(text: str) -> list[Signal]:
-    """Run every detector. Returns all signals in one flat list."""
+    """Run every detector and return one flat list."""
+    if not text:
+        return []
     return (
         check_domains(text)
         + check_urgency(text)
@@ -147,5 +160,10 @@ def extract_signals(text: str) -> list[Signal]:
 
 
 def rule_score(signals: list[Signal]) -> int:
-    """Combine signal weights into a 0-100 score. Capped at 100."""
-    return min(100, sum(s.weight for s in signals))
+    """Sum the weights, add a bonus when several categories fire, cap at 100."""
+    if not signals:
+        return 0
+    total = sum(s.weight for s in signals)
+    if len({s.type for s in signals}) >= 2:
+        total += 20
+    return min(100, total)
