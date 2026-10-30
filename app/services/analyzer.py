@@ -11,8 +11,8 @@ from app.services.signals import extract_signals, rule_score
 
 log = logging.getLogger("trustlens.analyzer")
 
-AI_WEIGHT = 0.7
-RULE_WEIGHT = 0.3
+AI_WEIGHT = 0.6
+RULE_WEIGHT = 0.4
 
 
 def analyze_message(req: AnalyzeRequest, llm: LLMClient) -> tuple[str, AnalyzeResponse]:
@@ -39,20 +39,29 @@ def analyze_message(req: AnalyzeRequest, llm: LLMClient) -> tuple[str, AnalyzeRe
             "recommended_action": "Verify with the official app or branch before acting.",
         }
 
-    # The AI is the main judge (70%). Rules add a 30% check.
-    # If the AI failed, the rule score is used alone.
     if ai_ok:
         ai_score = max(0, min(100, int(raw.get("risk_score", 0))))
-        score = round(AI_WEIGHT * ai_score + RULE_WEIGHT * floor)
+        # Final score = weighted blend, but never below the rule floor
+        blended = round(AI_WEIGHT * ai_score + RULE_WEIGHT * floor)
+        score = max(blended, floor)  # rules act as a hard floor
     else:
         score = floor
+
     score = max(0, min(100, score))
 
     highlights = []
     for h in raw.get("evidence_highlights", [])[:5]:
-        # Drop any quote the LLM invented that is not in the original text.
         if h.get("quote") and h["quote"] in req.message_text:
-            highlights.append(EvidenceHighlight(**{k: h[k] for k in ("quote", "type", "reason")}))
+            highlights.append(
+                EvidenceHighlight(**{k: h[k] for k in ("quote", "type", "reason")})
+            )
+
+    # If LLM returned no highlights, fall back to rule signals so UI always shows evidence
+    if not highlights and signals:
+        for s in signals[:5]:
+            highlights.append(
+                EvidenceHighlight(quote=s.quote, type=s.type, reason=s.reason)
+            )
 
     response = AnalyzeResponse(
         analysis_id=analysis_id,
