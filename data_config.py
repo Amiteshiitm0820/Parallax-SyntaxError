@@ -89,3 +89,23 @@ OBFUSCATED_EDGE_CASES = [
     {"id": "EDGE_009", "lang": "hindi", "text": "बिजली बिल: uppcl.0rg/pay"}, # Zero instead of 'o'
     {"id": "EDGE_010", "lang": "english", "text": "Netflix billing: netfIix.com"} # Capital 'I' instead of 'l'
 ]
+EXPECTED_RISK_TIERS = {
+    # High Risk (Urgency + Phishing Link)
+    "MSG_001": "High", "MSG_002": "High", "MSG_003": "High", "MSG_004": "High", 
+    "MSG_006": "High", "MSG_007": "High", "MSG_008": "High", "MSG_009": "High", 
+    "MSG_011": "High", "MSG_013": "High", "MSG_014": "High",
+    
+    # Medium Risk (Suspicious Link or Vague Urgency)
+    "MSG_005": "Medium", "MSG_010": "Medium", "MSG_012": "Medium", 
+    "MSG_015": "Medium", "MSG_016": "Medium",
+    
+    # Safe (Verified patterns, no suspicious links)
+    "MSG_017": "Safe", "MSG_018": "Safe", "MSG_019": "Safe", "MSG_020": "Safe",
+    "MSG_021": "Safe", "MSG_022": "Safe", "MSG_023": "Safe", "MSG_024": "Safe", 
+    "MSG_025": "Safe",
+    
+    # Obfuscated Edge Cases (All High/Medium Risk)
+    "EDGE_001": "High", "EDGE_002": "High", "EDGE_003": "High", "EDGE_004": "High",
+    "EDGE_005": "Medium", "EDGE_006": "High", "EDGE_007": "High", "EDGE_008": "High",
+    "EDGE_009": "High", "EDGE_010": "Medium"
+}
