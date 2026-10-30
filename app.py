@@ -178,53 +178,47 @@ st.markdown(
 )
 
 
+
 # ---------------------------------------------------------------------
 # Sample loading
 # ---------------------------------------------------------------------
-def _normalize_samples(items: Any) -> dict[str, str]:
-    normalized: dict[str, str] = {}
-    if isinstance(items, dict):
-        items = [{"label": key, "text": value} for key, value in items.items()]
-    if not isinstance(items, list):
-        return normalized
-
-    for index, item in enumerate(items, start=1):
-        if isinstance(item, str):
-            normalized[f"Sample {index}"] = item
-        elif isinstance(item, dict):
-            message = (
-                item.get("text") or item.get("message") or item.get("body")
-                or item.get("content")
-            )
-            label = item.get("label") or item.get("title") or item.get("name") or f"Sample {index}"
-            if isinstance(message, str) and message.strip():
-                normalized[f"{index}. {label}"] = message
-    return normalized
-
-
 def load_samples() -> dict[str, str]:
+    """Load all standard, extended and edge-case test messages."""
     try:
-        import data_config  # type: ignore
-        for variable_name in (
-            "SAMPLES", "SAMPLE_MESSAGES", "DATASET", "DATA",
-            "SAMPLE_DATA", "MESSAGES",
-        ):
-            if hasattr(data_config, variable_name):
-                found = _normalize_samples(getattr(data_config, variable_name))
-                if found:
-                    return found
-    except Exception:
-        pass
+        import data_config
 
-    try:
-        dataset_file = Path(__file__).resolve().parent / "dataset.json"
-        found = _normalize_samples(json.loads(dataset_file.read_text(encoding="utf-8")))
-        if found:
-            return found
-    except (OSError, json.JSONDecodeError, TypeError):
-        pass
+        samples = {}
 
-    return FALLBACK_SAMPLES
+        # Standard phishing and safe messages (25)
+        for item in data_config.MESSAGES_DATASET:
+            label = (
+                f"{item['id']} · {item['type'].capitalize()} "
+                f"· {item['lang'].capitalize()}"
+            )
+            samples[label] = item["text"]
+
+        # Extended threat scenarios (15)
+        for item in data_config.EXTENDED_DATASET:
+            label = (
+                f"{item['id']} · Extended · {item['type'].capitalize()} "
+                f"· {item['lang'].capitalize()}"
+            )
+            samples[label] = item["text"]
+
+        # Obfuscated edge cases (10)
+        for item in data_config.OBFUSCATED_EDGE_CASES:
+            label = (
+                f"{item['id']} · Edge Case "
+                f"· {item['lang'].capitalize()}"
+            )
+            samples[label] = item["text"]
+
+        return samples
+
+    except (ImportError, AttributeError, KeyError, TypeError) as exc:
+        st.warning(f"Could not load the TRUSTLENS test dataset: {exc}")
+        return FALLBACK_SAMPLES
+
 
 
 # ---------------------------------------------------------------------
