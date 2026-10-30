@@ -18,6 +18,7 @@ from app.services.signals import extract_signals, rule_score
 from data_config import EXTENDED_DATASET, MESSAGES_DATASET, OBFUSCATED_EDGE_CASES
 
 OUT = Path(__file__).resolve().parent / "rules_only_results.csv"
+SUMMARY = Path(__file__).resolve().parent / "results_summary.md"
 FLAG_THRESHOLD = 30  # score at or above this counts as flagged
 
 
@@ -56,7 +57,28 @@ def main() -> None:
     print("\nFalse alarms:")
     for r in false_alarms:
         print(f"  {r['id']} score={r['score']} signals={r['signals']}")
-    print(f"\nFull results: {OUT}")
+    groups = {
+        "Core set (MSG_001-025)": [r for r in rows if r["id"].startswith("MSG_") and int(r["id"][4:]) <= 25],
+        "Extended set (MSG_026-040)": [r for r in rows if r["id"].startswith("MSG_") and int(r["id"][4:]) > 25],
+        "Obfuscated edge cases (EDGE_001-010)": [r for r in rows if r["id"].startswith("EDGE_")],
+    }
+    lines = [
+        "| Set | Phishing caught | Recall | Safe passed | False alarms | Specificity |",
+        "|---|---|---|---|---|---|",
+    ]
+    for name, grp in groups.items():
+        ph = [r for r in grp if r["expected"] == "phishing"]
+        sf = [r for r in grp if r["expected"] == "safe"]
+        caught = sum(r["flagged"] for r in ph)
+        fa = sum(r["flagged"] for r in sf)
+        recall = f"{caught / len(ph):.0%}" if ph else "n/a"
+        spec = f"{(len(sf) - fa) / len(sf):.0%}" if sf else "n/a"
+        lines.append(f"| {name} | {caught}/{len(ph)} | {recall} | {len(sf) - fa}/{len(sf)} | {fa} | {spec} |")
+    table = "\n".join(lines) + "\n"
+    SUMMARY.write_text(table, encoding="utf-8")
+    print("\n" + table)
+    print(f"Full results: {OUT}")
+    print(f"Summary table: {SUMMARY}")
 
 
 if __name__ == "__main__":

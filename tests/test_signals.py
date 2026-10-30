@@ -45,3 +45,27 @@ def test_repeated_matches_do_not_inflate_score():
 
 def test_score_is_capped_at_100():
     assert 0 <= rule_score(extract_signals(SBI_PHISH)) <= 100
+
+
+def test_lookalike_netflix_domain_is_flagged():
+    from app.services.signals import check_domains
+    sigs = check_domains("Netflix billing: netfIix.com")
+    assert any(s.type == "Domain Inconsistency" for s in sigs)
+
+
+def test_lookalike_power_bill_domain_is_flagged():
+    from app.services.signals import check_domains
+    sigs = check_domains("बिजली बिल: uppcl.0rg/pay")
+    assert any(s.type == "Domain Inconsistency" for s in sigs)
+
+
+def test_real_domain_with_digits_not_flagged_as_lookalike():
+    from app.services.signals import check_domains
+    sigs = check_domains("Order at 1mg.com today")
+    assert not any(s.type == "Domain Inconsistency" for s in sigs)
+
+
+def test_plain_brand_domain_not_flagged_as_lookalike():
+    from app.services.signals import check_domains
+    sigs = check_domains("Watch at netflix.com")
+    assert not any(s.type == "Domain Inconsistency" for s in sigs)
