@@ -1,6 +1,6 @@
 """Run the rule-based detector over the full dataset and report misses.
 
-Usage (from the project root):
+Usage (from the project root, with data_config.py in the project root):
     python -m eval.run_rules_eval
 
 Does not use dataset labels for scoring. Labels are only used to compare results.
@@ -8,8 +8,14 @@ Does not use dataset labels for scoring. Labels are only used to compare results
 import csv
 from pathlib import Path
 
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))  # so data_config.py in the project root is importable
+
 from app.services.signals import extract_signals, rule_score
-from eval.data_config import MESSAGES_DATASET, OBFUSCATED_EDGE_CASES
+from data_config import EXTENDED_DATASET, MESSAGES_DATASET, OBFUSCATED_EDGE_CASES
 
 OUT = Path(__file__).resolve().parent / "rules_only_results.csv"
 FLAG_THRESHOLD = 30  # score at or above this counts as flagged
@@ -17,6 +23,7 @@ FLAG_THRESHOLD = 30  # score at or above this counts as flagged
 
 def main() -> None:
     items = [(m["id"], m["type"], m["text"]) for m in MESSAGES_DATASET]
+    items += [(m["id"], m["type"], m["text"]) for m in EXTENDED_DATASET]
     items += [(e["id"], "phishing", e["text"]) for e in OBFUSCATED_EDGE_CASES]
 
     rows = []
