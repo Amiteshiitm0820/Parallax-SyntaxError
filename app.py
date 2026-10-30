@@ -11,6 +11,7 @@ the backend; this file does not calculate them.
 from __future__ import annotations
 
 import html
+import os
 import json
 import re
 from pathlib import Path
@@ -29,7 +30,10 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-DEFAULT_API_URL = "http://localhost:8000"
+DEFAULT_API_URL = os.getenv(
+    "API_BASE_URL",
+    "http://localhost:8000"
+)
 REQUEST_TIMEOUT = 30
 
 CHANNELS = {
