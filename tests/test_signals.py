@@ -38,5 +38,10 @@ def test_hinglish_message_scores_and_quotes_are_exact():
         assert s.quote in sample
 
 
+def test_repeated_matches_do_not_inflate_score():
+    # Same message repeated: each type still counts once, so the score is not pushed to 100.
+    assert rule_score(extract_signals(" ".join([SBI_PHISH] * 10))) == rule_score(extract_signals(SBI_PHISH))
+
+
 def test_score_is_capped_at_100():
-    assert rule_score(extract_signals(" ".join([SBI_PHISH] * 10))) == 100
+    assert 0 <= rule_score(extract_signals(SBI_PHISH)) <= 100

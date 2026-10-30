@@ -47,10 +47,21 @@ def _user_payload(message_text: str, channel: str, hints: list[dict]) -> str:
 
 
 def _parse_json(raw: str) -> dict:
-    """Models sometimes wrap JSON in markdown fences. Strip them, then parse."""
-    cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw.strip())
+    """Pull the JSON object out of a model reply.
+
+    Handles markdown fences, and extra text or reasoning before/after the object.
+    """
+    text = raw.strip()
+    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text)
     try:
-        return json.loads(cleaned)
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end <= start:
+        raise LLMError("LLM reply contained no JSON object.")
+    try:
+        return json.loads(text[start:end + 1])
     except json.JSONDecodeError as exc:
         raise LLMError(f"LLM returned invalid JSON: {exc}") from exc
 

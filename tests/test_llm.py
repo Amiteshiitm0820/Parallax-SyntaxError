@@ -13,6 +13,11 @@ def test_parse_strips_markdown_fences():
     assert _parse_json(raw)["risk_score"] == 10
 
 
+def test_parse_extracts_object_from_extra_text():
+    raw = "Reasoning: checking the link...\n{\"risk_score\": 42}\nDone."
+    assert _parse_json(raw)["risk_score"] == 42
+
+
 def test_parse_invalid_json_raises():
     with pytest.raises(LLMError):
         _parse_json("not json at all")

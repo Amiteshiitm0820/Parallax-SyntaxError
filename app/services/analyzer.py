@@ -11,6 +11,9 @@ from app.services.signals import extract_signals, rule_score
 
 log = logging.getLogger("trustlens.analyzer")
 
+AI_WEIGHT = 0.7
+RULE_WEIGHT = 0.3
+
 
 def analyze_message(req: AnalyzeRequest, llm: LLMClient) -> tuple[str, AnalyzeResponse]:
     """Returns (analysis_id, response). Falls back to rule-only output if the LLM fails."""
@@ -22,9 +25,11 @@ def analyze_message(req: AnalyzeRequest, llm: LLMClient) -> tuple[str, AnalyzeRe
     ]
     floor = rule_score(signals)
 
+    ai_ok = True
     try:
         raw = llm.analyze(req.message_text, req.channel, hints)
     except LLMError as exc:
+        ai_ok = False
         log.warning("LLM failed, using rule-only fallback: %s", exc)
         raw = {
             "risk_score": floor,
@@ -34,8 +39,13 @@ def analyze_message(req: AnalyzeRequest, llm: LLMClient) -> tuple[str, AnalyzeRe
             "recommended_action": "Verify with the official app or branch before acting.",
         }
 
-    # Score never drops below the rule floor; the LLM can only raise it.
-    score = max(int(raw.get("risk_score", 0)), floor)
+    # The AI is the main judge (70%). Rules add a 30% check.
+    # If the AI failed, the rule score is used alone.
+    if ai_ok:
+        ai_score = max(0, min(100, int(raw.get("risk_score", 0))))
+        score = round(AI_WEIGHT * ai_score + RULE_WEIGHT * floor)
+    else:
+        score = floor
     score = max(0, min(100, score))
 
     highlights = []
@@ -45,6 +55,7 @@ def analyze_message(req: AnalyzeRequest, llm: LLMClient) -> tuple[str, AnalyzeRe
             highlights.append(EvidenceHighlight(**{k: h[k] for k in ("quote", "type", "reason")}))
 
     response = AnalyzeResponse(
+        analysis_id=analysis_id,
         risk_score=score,
         risk_tier=tier_for_score(score),
         language=raw.get("language", "Unknown"),

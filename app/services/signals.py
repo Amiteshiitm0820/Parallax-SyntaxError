@@ -160,10 +160,17 @@ def extract_signals(text: str) -> list[Signal]:
 
 
 def rule_score(signals: list[Signal]) -> int:
-    """Sum the weights, add a bonus when several categories fire, cap at 100."""
+    """Score from rules. Each signal type counts once, at its strongest weight.
+
+    This stops repeated matches (e.g. four urgency words) from inflating the score.
+    A small bonus applies when several different types fire. Capped at 100.
+    """
     if not signals:
         return 0
-    total = sum(s.weight for s in signals)
-    if len({s.type for s in signals}) >= 2:
+    best_by_type: dict[str, int] = {}
+    for s in signals:
+        best_by_type[s.type] = max(best_by_type.get(s.type, 0), s.weight)
+    total = sum(best_by_type.values())
+    if len(best_by_type) >= 2:
         total += 20
     return min(100, total)

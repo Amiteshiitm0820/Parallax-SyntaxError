@@ -22,6 +22,7 @@ class EvidenceHighlight(BaseModel):
 
 
 class AnalyzeResponse(BaseModel):
+    analysis_id: str
     risk_score: int = Field(..., ge=0, le=100)
     risk_tier: RiskTier
     language: str

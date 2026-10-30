@@ -48,6 +48,7 @@ def analyze(req: AnalyzeRequest):
         raise HTTPException(status_code=400, detail="message_text cannot be empty.")
     try:
         _, response = analyze_message(req, _llm())
+        # analysis_id is already set on the response object by analyze_message()
     except LLMError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return response
