@@ -67,7 +67,7 @@ def _parse_json(raw: str) -> dict:
 
 
 class GeminiClient:
-    def __init__(self, api_key: str, model: str = "gemini-2.0-flash"):
+    def __init__(self, api_key: str, model: str = "gemini-3.5-flash-lite"):
         from google import genai  # lazy import so mock mode needs no package
         self._client = genai.Client(api_key=api_key)
         self._model = model
@@ -153,7 +153,7 @@ def get_llm_client() -> LLMClient:
         key = os.getenv("GEMINI_API_KEY")
         if not key:
             raise LLMError("GEMINI_API_KEY is not set.")
-        return GeminiClient(api_key=key, model=os.getenv("GEMINI_MODEL", "gemini-2.0-flash"))
+        return GeminiClient(api_key=key, model=os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite"))
     if provider in OPENAI_COMPATIBLE_DEFAULTS:
         default_url, default_model = OPENAI_COMPATIBLE_DEFAULTS[provider]
         return OpenAICompatibleClient(

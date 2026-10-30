@@ -1,0 +1,51 @@
+id,expected,score,signals,flagged
+MSG_001,phishing,92,Artificial Urgency; Credential Harvesting; Domain Inconsistency,True
+MSG_002,phishing,70,Domain Inconsistency; Unsolicited Reward,True
+MSG_003,phishing,67,Artificial Urgency; Domain Inconsistency,True
+MSG_004,phishing,67,Artificial Urgency; Domain Inconsistency,True
+MSG_005,phishing,30,Domain Inconsistency,True
+MSG_006,phishing,67,Artificial Urgency; Domain Inconsistency,True
+MSG_007,phishing,35,Domain Inconsistency,True
+MSG_008,phishing,35,Domain Inconsistency,True
+MSG_009,phishing,67,Artificial Urgency; Domain Inconsistency,True
+MSG_010,phishing,70,Domain Inconsistency; Unsolicited Reward,True
+MSG_011,phishing,92,Artificial Urgency; Credential Harvesting; Domain Inconsistency,True
+MSG_012,phishing,35,Domain Inconsistency,True
+MSG_013,phishing,42,Artificial Urgency; Suspicious URL,True
+MSG_014,phishing,92,Artificial Urgency; Credential Harvesting; Domain Inconsistency,True
+MSG_015,phishing,35,Domain Inconsistency,True
+MSG_016,phishing,45,Suspicious URL; Unsolicited Reward,True
+MSG_017,safe,25,Credential Harvesting,False
+MSG_018,safe,0,,False
+MSG_019,safe,0,,False
+MSG_020,safe,0,,False
+MSG_021,safe,0,,False
+MSG_022,safe,0,,False
+MSG_023,safe,0,,False
+MSG_024,safe,0,,False
+MSG_025,safe,0,,False
+MSG_026,phishing,35,Domain Inconsistency,True
+MSG_027,phishing,10,Suspicious URL,False
+MSG_028,phishing,10,Suspicious URL,False
+MSG_029,safe,35,Domain Inconsistency,True
+MSG_030,phishing,62,Artificial Urgency; Domain Inconsistency,True
+MSG_031,phishing,10,Suspicious URL,False
+MSG_032,phishing,35,Domain Inconsistency,True
+MSG_033,safe,0,,False
+MSG_034,phishing,10,Suspicious URL,False
+MSG_035,phishing,10,Suspicious URL,False
+MSG_036,phishing,10,Suspicious URL,False
+MSG_037,phishing,80,Credential Harvesting; Domain Inconsistency,True
+MSG_038,safe,25,Credential Harvesting,False
+MSG_039,phishing,92,Artificial Urgency; Credential Harvesting; Domain Inconsistency,True
+MSG_040,safe,0,,False
+EDGE_001,phishing,55,Credential Harvesting; Suspicious URL,True
+EDGE_002,phishing,75,Credential Harvesting; Domain Inconsistency,True
+EDGE_003,phishing,35,Domain Inconsistency,True
+EDGE_004,phishing,35,Domain Inconsistency,True
+EDGE_005,phishing,35,Domain Inconsistency,True
+EDGE_006,phishing,35,Domain Inconsistency,True
+EDGE_007,phishing,45,Suspicious URL; Unsolicited Reward,True
+EDGE_008,phishing,35,Domain Inconsistency,True
+EDGE_009,phishing,10,Suspicious URL,False
+EDGE_010,phishing,10,Suspicious URL,False
