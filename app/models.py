@@ -36,6 +36,7 @@ class FeedbackRequest(BaseModel):
     message_text: str
     original_risk_score: Optional[int] = None
     user_comment: Optional[str] = None
+    reason: Optional[str] = None  # the frontend's feedback dropdown sends this
 
 
 class FeedbackResponse(BaseModel):

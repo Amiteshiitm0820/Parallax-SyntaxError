@@ -19,7 +19,6 @@ OFFICIAL_DOMAINS = {
     "hdfcbank.com", "icicibank.com", "axisbank.com",
     "paytm.com", "phonepe.com", "amazon.in", "flipkart.com", "cricbuzz.com",
     "npci.org.in", "incometax.gov.in", "uidai.gov.in", "indiapost.gov.in",
-    "gov.in", "nic.in",
 }
 
 SUSPICIOUS_TLDS = {
@@ -72,7 +71,12 @@ LURE_TOKENS = {
     "offer", "bonus", "gift", "lucky", "lottery", "kyc", "pan", "aadhar", "aadhaar",
     "link", "verify", "update", "secure", "login", "bank", "sbi", "hdfc", "icici",
     "axis", "upi", "jio", "airtel", "paytm", "phonepe", "gpay", "netbanking",
+    "loan", "yojana", "support", "recovery", "delivery", "tracker", "redelivery",
+    "parcel", "billing", "subscription", "epf", "uan", "fee", "payment", "recharge",
+    "scheme", "subsidy", "kbc", "govt", "gov", "alert", "reactivate", "unlock",
 }
+
+IP_HOST_RE = re.compile(r"^\d{1,3}(\.\d{1,3}){3}$")
 
 
 @dataclass
@@ -111,6 +115,14 @@ def check_domains(text: str) -> list[Signal]:
         is_official = any(host == d or host.endswith("." + d) for d in OFFICIAL_DOMAINS)
         if is_official:
             continue
+        if IP_HOST_RE.match(host):
+            signals.append(Signal(
+                quote=url,
+                type="Domain Inconsistency",
+                reason="Link points to a raw IP address instead of a named website.",
+                weight=35,
+            ))
+            continue
         if tld in SUSPICIOUS_TLDS:
             signals.append(Signal(
                 quote=url,
@@ -118,7 +130,7 @@ def check_domains(text: str) -> list[Signal]:
                 reason=f"Uses the '.{tld}' domain, which is often abused for phishing and is not an official domain.",
                 weight=30,
             ))
-        elif set(re.split(r"[.\-]", host)) & LURE_TOKENS:
+        elif set(re.split(r"[.\-]", host)) & LURE_TOKENS or host.endswith(".gov.in"):
             signals.append(Signal(
                 quote=url,
                 type="Domain Inconsistency",
