@@ -77,3 +77,15 @@ MESSAGES_DATASET = [
     # --- SAFE: HINGLISH ---
     {"id": "MSG_025", "type": "safe", "lang": "hinglish", "text": "Aapka mobile recharge Rs 299 ka successful ho gaya hai. Valid till 30 Nov."}
 ]
+OBFUSCATED_EDGE_CASES = [
+    {"id": "EDGE_001", "lang": "english", "text": "Verify your account at sbí.co.in"}, # Cyrillic 'í'
+    {"id": "EDGE_002", "lang": "english", "text": "Update KYC on hdfcbank.com.update-kyc.info"}, # Subdomain trick
+    {"id": "EDGE_003", "lang": "english", "text": "Claim refund at lnc0metax.gov.in"}, # 'l' for 'I', '0' for 'o'
+    {"id": "EDGE_004", "lang": "hindi", "text": "पैन लिंक करें: aadhar-pan-Iink.com"}, # Capital 'I' instead of 'l'
+    {"id": "EDGE_005", "lang": "hinglish", "text": "Account bIocked. Login: icici-bank-secure.com"}, # Fake hyphen
+    {"id": "EDGE_006", "lang": "english", "text": "Track package: indiapost.gov.in.delivery-alert.com"}, 
+    {"id": "EDGE_007", "lang": "hinglish", "text": "Jio free recharge 599: j!o.com/free"}, # Symbol substitution
+    {"id": "EDGE_008", "lang": "english", "text": "Secure now: 192.168.1.105/sbi-update"}, # IP address routing
+    {"id": "EDGE_009", "lang": "hindi", "text": "बिजली बिल: uppcl.0rg/pay"}, # Zero instead of 'o'
+    {"id": "EDGE_010", "lang": "english", "text": "Netflix billing: netfIix.com"} # Capital 'I' instead of 'l'
+]
