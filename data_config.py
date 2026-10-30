@@ -77,6 +77,31 @@ MESSAGES_DATASET = [
     # --- SAFE: HINGLISH ---
     {"id": "MSG_025", "type": "safe", "lang": "hinglish", "text": "Aapka mobile recharge Rs 299 ka successful ho gaya hai. Valid till 30 Nov."}
 ]
+# 4. Advanced Threat Scenarios (Add to data_config.py)
+EXTENDED_DATASET = [
+    # --- E-CHALLAN & TRAFFIC SCAMS ---
+    {"id": "MSG_026", "type": "phishing", "lang": "english", "text": "Traffic Police: Your vehicle KA-01 has a pending challan of Rs 2000. Pay via echallan-parivahan-gov.in to avoid court notice."},
+    {"id": "MSG_027", "type": "phishing", "lang": "hindi", "text": "यातायात पुलिस: आपका 1000 रुपये का चालान पेंडिंग है। आज ही echallan-pay-india.com पर भुगतान करें वरना गाड़ी ज़ब्त होगी।"},
+    {"id": "MSG_028", "type": "phishing", "lang": "hinglish", "text": "Sir aapka traffic challan pending hai court me jayega kal. Pay fast: e-challan-online.in"},
+    {"id": "MSG_029", "type": "safe", "lang": "english", "text": "E-challan generated for vehicle KA01XX1234. Amount: Rs 500. Visit official portal echallan.parivahan.gov.in to view."},
+
+    # --- CUSTOMS & COURIER SCAMS ---
+    {"id": "MSG_030", "type": "phishing", "lang": "english", "text": "FedEx: Your international package is held at customs. Clear Rs 499 duty fee here immediately: fedex-customs-clearance.info"},
+    {"id": "MSG_031", "type": "phishing", "lang": "hindi", "text": "कस्टम विभाग: आपका पार्सल रोका गया है। 500 रुपये की कस्टम ड्यूटी भरें: india-customs-post.in"},
+    {"id": "MSG_032", "type": "phishing", "lang": "hinglish", "text": "Aapka courier hold par hai custom clearance ke liye. Rs 250 pay karein delivery ke liye: bluedart-track-update.com"},
+    {"id": "MSG_033", "type": "safe", "lang": "hindi", "text": "आपका पार्सल (ID: 9382) आज शाम तक डिलीवर कर दिया जाएगा। - Amazon"},
+    
+    # --- PART-TIME JOB & TELEGRAM SCAMS ---
+    {"id": "MSG_034", "type": "phishing", "lang": "english", "text": "HR Department: You are selected for a WFH job. Earn Rs 5000 daily by liking YouTube videos. Message on Telegram: t.me/hr_recruiter_99"},
+    {"id": "MSG_035", "type": "phishing", "lang": "hindi", "text": "अमेज़ॅन पार्ट टाइम जॉब! घर बैठे रोज़ाना ₹3000 कमाएं। अभी व्हाट्सएप करें: wa.me/918xxxxxxxxx"},
+    {"id": "MSG_036", "type": "phishing", "lang": "hinglish", "text": "Google reviews part time job. Earn 2000 per day. Joining bonus Rs 500. Click here to join our WhatsApp group: chat.whatsapp.com/fakegroup"},
+    
+    # --- PAN-AADHAAR & BANKING EDGE CASES ---
+    {"id": "MSG_037", "type": "phishing", "lang": "hinglish", "text": "Dear user, PAN-Aadhar link last date is today. Penalty Rs 10000. Link fast: incometax-gov-link.in"},
+    {"id": "MSG_038", "type": "safe", "lang": "english", "text": "Your Aadhar XX4829 has been successfully authenticated for e-KYC on 30-Oct-2026. - UIDAI"},
+    {"id": "MSG_039", "type": "phishing", "lang": "hindi", "text": "आपका योनो खाता सस्पेंड हो गया है। अपना पैन कार्ड तुरंत अपडेट करें: sbi-yono-kyc.in"},
+    {"id": "MSG_040", "type": "safe", "lang": "hinglish", "text": "Aapka Swiggy Instamart order raste me hai. Delivery partner 10 minute me pahuchega."}
+]
 OBFUSCATED_EDGE_CASES = [
     {"id": "EDGE_001", "lang": "english", "text": "Verify your account at sbí.co.in"}, # Cyrillic 'í'
     {"id": "EDGE_002", "lang": "english", "text": "Update KYC on hdfcbank.com.update-kyc.info"}, # Subdomain trick
@@ -109,3 +134,9 @@ EXPECTED_RISK_TIERS = {
     "EDGE_005": "Medium", "EDGE_006": "High", "EDGE_007": "High", "EDGE_008": "High",
     "EDGE_009": "High", "EDGE_010": "Medium"
 }
+EXPECTED_RISK_TIERS.update({
+    "MSG_026": "High", "MSG_027": "High", "MSG_028": "High", "MSG_029": "Safe",
+    "MSG_030": "High", "MSG_031": "High", "MSG_032": "High", "MSG_033": "Safe",
+    "MSG_034": "Medium", "MSG_035": "Medium", "MSG_036": "Medium", 
+    "MSG_037": "High", "MSG_038": "Safe", "MSG_039": "High", "MSG_040": "Safe"
+})
