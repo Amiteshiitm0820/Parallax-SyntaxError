@@ -19,6 +19,7 @@ OFFICIAL_DOMAINS = {
     "hdfcbank.com", "icicibank.com", "axisbank.com",
     "paytm.com", "phonepe.com", "amazon.in", "flipkart.com", "cricbuzz.com",
     "npci.org.in", "incometax.gov.in", "uidai.gov.in", "indiapost.gov.in",
+    "parivahan.gov.in",
 }
 
 SUSPICIOUS_TLDS = {
@@ -63,7 +64,12 @@ REWARD_PATTERNS = [
     r"\bfree (gift|recharge|prize)\b",
     r"\bclaim (now|your|bonus)\b",
     r"जीत|जीते|इनाम|लॉटरी|कैशबैक|बधाई|मुफ्त|मुफ़्त|पुरस्कार",
+    r"part[- ]time|work from home|\bwfh\b|per day|daily earn|earn (rs|rupees|\d)",
+    r"घर बैठे|पार्ट टाइम|रोज़ाना|रोजाना|कमाएं|कमाए",
 ]
+
+# Messaging-app links are a common way to move victims into scam chats.
+CONTACT_LINK_RE = re.compile(r"(?:t\.me|wa\.me|chat\.whatsapp\.com|telegram\.me)/[^\s]+", re.IGNORECASE)
 
 # Words that make a non-official domain look like a bank, government or prize scheme.
 LURE_TOKENS = {
@@ -74,7 +80,17 @@ LURE_TOKENS = {
     "loan", "yojana", "support", "recovery", "delivery", "tracker", "redelivery",
     "parcel", "billing", "subscription", "epf", "uan", "fee", "payment", "recharge",
     "scheme", "subsidy", "kbc", "govt", "gov", "alert", "reactivate", "unlock",
+    "pay", "challan", "echallan", "customs", "duty", "clearance", "penalty",
 }
+
+# Known names scammers imitate. Used after undoing look-alike character swaps.
+BRAND_TOKENS = {
+    "netflix", "amazon", "flipkart", "paypal", "google", "microsoft", "whatsapp",
+    "irctc", "epfo", "uidai", "uppcl", "bescom", "mseb", "tneb", "bsnl", "incometax",
+}
+
+# Characters commonly swapped in for letters: 0->o, 1->l, ! or | -> i/l, capital I -> l.
+LOOKALIKE_MAP = str.maketrans({"0": "o", "1": "l", "!": "i", "|": "l", "I": "l"})
 
 IP_HOST_RE = re.compile(r"^\d{1,3}(\.\d{1,3}){3}$")
 
@@ -97,6 +113,14 @@ def _find_all(patterns: list[str], text: str) -> list[str]:
 
 def extract_urls(text: str) -> list[str]:
     return [raw.rstrip(".,;:!?)") for raw in URL_RE.findall(text)]
+
+
+def _raw_host(url: str) -> str:
+    """Host with its original characters, so look-alike swaps can be detected."""
+    if not url.startswith(("http://", "https://")):
+        url = "http://" + url
+    netloc = urlparse(url).netloc
+    return netloc.split("@")[-1].split(":")[0]
 
 
 def _host(url: str) -> str:
@@ -123,6 +147,17 @@ def check_domains(text: str) -> list[Signal]:
                 weight=35,
             ))
             continue
+        disguised = _raw_host(url).translate(LOOKALIKE_MAP).lower()
+        if disguised != _raw_host(url).lower():
+            labels = set(re.split(r"[.\-]", disguised))
+            if labels & (LURE_TOKENS | BRAND_TOKENS):
+                signals.append(Signal(
+                    quote=url,
+                    type="Domain Inconsistency",
+                    reason="Uses look-alike characters (such as 0 for o or I for l) to imitate a known name.",
+                    weight=35,
+                ))
+                continue
         if tld in SUSPICIOUS_TLDS:
             signals.append(Signal(
                 quote=url,
@@ -172,6 +207,15 @@ def check_rewards(text: str) -> list[Signal]:
     ]
 
 
+def check_contact_links(text: str) -> list[Signal]:
+    return [
+        Signal(quote=m.group(0), type="Scam Chat Link",
+               reason="Links to a messaging app. Scammers use these to move victims into private chats.",
+               weight=25)
+        for m in CONTACT_LINK_RE.finditer(text)
+    ]
+
+
 def extract_signals(text: str) -> list[Signal]:
     """Run every detector and return one flat list."""
     if not text:
@@ -181,6 +225,7 @@ def extract_signals(text: str) -> list[Signal]:
         + check_urgency(text)
         + check_credentials(text)
         + check_rewards(text)
+        + check_contact_links(text)
     )
 
 
