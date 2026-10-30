@@ -1,289 +1,626 @@
+"""TRUSTLENS — polished Streamlit frontend (Person 4: UI & Pitch Deck Lead)
+
+Run:
+    python -m pip install streamlit requests
+    streamlit run app.py
+
+The frontend sends messages to FastAPI. Risk scores and tiers are supplied by
+the backend; this file does not calculate them.
 """
-TRUSTLENS - app.py  (Person 4: Frontend & UI)
 
-Run with:  streamlit run app.py
-
-This file ONLY does presentation. It calls:
-  extractor.extract_signals(text) -> dict          (Person 2)
-  scorer.calculate_score(signals) -> dict          (Person 3)
-  scorer.save_feedback(text, reason)               (Person 3)
-and reads samples from data_config.py / dataset.json (Person 1).
-
-If a teammate's file is not ready yet, the app falls back to a tiny
-DEMO stub so you can keep building the UI. A yellow banner tells you when.
-"""
+from __future__ import annotations
 
 import html
 import json
 import re
 from pathlib import Path
+from typing import Any
 
+import requests
 import streamlit as st
 
-# --------------------------------------------------------------------------
-# 1. Import teammates' code (with safe fallbacks so the UI never crashes)
-# --------------------------------------------------------------------------
-USING_STUB_EXTRACTOR = False
-USING_STUB_SCORER = False
+# ---------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------
+st.set_page_config(
+    page_title="TRUSTLENS | Message Security",
+    page_icon="🛡️",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
-try:
-    from extractor import extract_signals
-except Exception:
-    USING_STUB_EXTRACTOR = True
+DEFAULT_API_URL = "http://localhost:8000"
+REQUEST_TIMEOUT = 30
 
-    def extract_signals(text: str) -> dict:
-        urls = re.findall(r"https?://[^\s]+|\b[\w-]+\.(?:com|in|co\.in|xyz|ly)/?\S*", text)
-        urgency = [w for w in ["blocked", "KYC", "OTP", "urgent", "कट जाएगी", "ब्लॉक"]
-                   if w.lower() in text.lower()]
-        return {"urls": urls, "urgency_phrases": urgency}
+CHANNELS = {
+    "SMS": "sms",
+    "WhatsApp": "whatsapp",
+    "Email": "email",
+    "Other": "other",
+}
 
-try:
-    from scorer import calculate_score, save_feedback
-except Exception:
-    USING_STUB_SCORER = True
+TIER_STYLE = {
+    "Low Risk": {"color": "#35C98A", "soft": "rgba(53,201,138,.12)", "icon": "●"},
+    "Medium Risk": {"color": "#E9B44C", "soft": "rgba(233,180,76,.12)", "icon": "●"},
+    "High Risk": {"color": "#F28B50", "soft": "rgba(242,139,80,.12)", "icon": "●"},
+    "Critical Risk": {"color": "#FF647C", "soft": "rgba(255,100,124,.12)", "icon": "●"},
+}
 
-    def calculate_score(signals: dict) -> dict:
-        score = min(100, 25 * len(signals.get("urgency_phrases", []))
-                    + 30 * len(signals.get("urls", [])))
-        tier = "High" if score >= 70 else "Medium" if score >= 30 else "Low"
-        return {
-            "score": score,
-            "tier": tier,
-            "evidence": signals.get("urgency_phrases", []) + signals.get("urls", []),
-            "reasons": ["DEMO stub - real scorer.py not connected yet"],
-            "steps": ["Do not click any link.", "Open the official app yourself."],
-        }
-
-    def save_feedback(text: str, reason: str):
-        Path("feedback_demo.json").write_text(
-            json.dumps({"text": text, "reason": reason}, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-
-# --------------------------------------------------------------------------
-# 2. Load sample messages (Person 1's data, with fallbacks)
-# --------------------------------------------------------------------------
 FALLBACK_SAMPLES = {
-    "SBI KYC (English SMS)": "Dear customer, your SBI account will be blocked today. "
-                             "Complete KYC now: http://sbi-kyc-verify.com/update",
-    "Bijli bill (Hinglish SMS)": "Aapki bijli kal raat tak kat jayegi! Abhi bill pay karo: "
-                                 "bit.ly/pay-bijli-now",
-    "Bank alert (Hindi SMS)": "आपका खाता ब्लॉक हो जाएगा। अभी KYC अपडेट करें और OTP साझा करें: "
-                              "http://hdfc-secure-login.xyz",
-    "Normal message (safe)": "Hi, your Amazon order has been delivered. "
-                             "Track it in the official Amazon app.",
+    "SBI KYC alert · English SMS": (
+        "URGENT: Your SBI account has been locked. Verify KYC immediately at "
+        "http://sbi-kyc-update.xyz or services will terminate within 2 hours."
+    ),
+    "Electricity threat · Hinglish SMS": (
+        "Aapki bijli kal raat tak kat jayegi! Abhi bill pay karo: "
+        "http://bijli-bill-payment.xyz"
+    ),
+    "Bank alert · Hindi SMS": (
+        "आपका खाता ब्लॉक हो जाएगा। अभी KYC अपडेट करें और OTP साझा करें: "
+        "http://hdfc-secure-login.xyz"
+    ),
+    "Courier fee · WhatsApp": (
+        "Your parcel is on hold. Pay ₹25 delivery reattempt fee now to avoid "
+        "return: http://parcel-redelivery-fee.xyz"
+    ),
+    "Routine transaction · Safe example": (
+        "Your transaction on sbi.co.in was successful. Thank you."
+    ),
 }
 
 
-def _normalize(items) -> dict:
-    """Accept a list of strings / dicts, or a dict, and return {label: text}."""
-    out = {}
+# ---------------------------------------------------------------------
+# Styling
+# ---------------------------------------------------------------------
+st.markdown(
+    """
+    <style>
+    :root {
+        --tl-bg: #080E1A;
+        --tl-panel: #101A2B;
+        --tl-panel-2: #142238;
+        --tl-line: rgba(154, 177, 211, .16);
+        --tl-text: #EAF1FC;
+        --tl-muted: #91A2BC;
+        --tl-cyan: #63D8E8;
+        --tl-violet: #9B8CFF;
+    }
+
+    .stApp {
+        background:
+          radial-gradient(ellipse at 12% 0%, rgba(65, 119, 180, .16), transparent 34%),
+          radial-gradient(ellipse at 90% 8%, rgba(91, 74, 174, .13), transparent 30%),
+          var(--tl-bg);
+        color: var(--tl-text);
+    }
+    [data-testid="stHeader"] { background: rgba(8,14,26,.82); }
+    [data-testid="stSidebar"] {
+        background: #0B1423;
+        border-right: 1px solid var(--tl-line);
+    }
+    [data-testid="stSidebar"] > div { background: transparent; }
+    .block-container { max-width: 1450px; padding-top: 2rem; padding-bottom: 2.5rem; }
+    h1, h2, h3, p, label, [data-testid="stMarkdownContainer"] { color: var(--tl-text); }
+    .tl-kicker {
+        color: var(--tl-cyan); font-size: .72rem; font-weight: 800;
+        letter-spacing: .2em; text-transform: uppercase; margin-bottom: .45rem;
+    }
+    .tl-hero {
+        border: 1px solid var(--tl-line);
+        border-radius: 22px;
+        padding: 1.35rem 1.55rem;
+        background: linear-gradient(115deg, rgba(20,34,56,.96), rgba(13,24,42,.88));
+        box-shadow: 0 16px 45px rgba(0,0,0,.18);
+        margin-bottom: 1.35rem;
+    }
+    .tl-hero-title { font-size: 2.05rem; font-weight: 850; letter-spacing: -.045em; margin: 0; }
+    .tl-hero-sub { color: var(--tl-muted); margin-top: .35rem; font-size: .96rem; }
+    .tl-pill {
+        display: inline-block; padding: .35rem .65rem; border-radius: 999px;
+        border: 1px solid rgba(99,216,232,.28); color: var(--tl-cyan);
+        background: rgba(99,216,232,.07); font-size: .72rem; font-weight: 750;
+        letter-spacing: .08em; text-transform: uppercase;
+    }
+    .tl-panel {
+        background: linear-gradient(145deg, rgba(17,29,48,.98), rgba(13,23,39,.98));
+        border: 1px solid var(--tl-line); border-radius: 18px;
+        padding: 1.15rem 1.25rem; margin-bottom: 1rem;
+    }
+    .tl-panel-label {
+        color: var(--tl-muted); font-size: .72rem; font-weight: 800;
+        letter-spacing: .14em; text-transform: uppercase; margin-bottom: .55rem;
+    }
+    .tl-muted { color: var(--tl-muted); }
+    .tl-risk {
+        border: 1px solid var(--tl-line); border-radius: 18px;
+        padding: 1.25rem 1.35rem; margin: .65rem 0 .8rem 0;
+        background: linear-gradient(135deg, rgba(20,34,56,.96), rgba(12,22,38,.98));
+    }
+    .tl-risk-score { font-size: 2.8rem; line-height: 1; font-weight: 850; letter-spacing: -.06em; }
+    .tl-evidence {
+        border: 1px solid var(--tl-line); background: rgba(12,22,38,.82);
+        padding: 1rem 1.1rem; border-radius: 14px; line-height: 1.85;
+        overflow-wrap: anywhere;
+    }
+    .tl-evidence mark {
+        background: rgba(233,180,76,.24); color: #FFE6A6;
+        border: 1px solid rgba(233,180,76,.35); padding: 2px 4px;
+        border-radius: 5px; font-weight: 750;
+    }
+    .tl-foot {
+        color: #8192AA; font-size: .78rem; border-top: 1px solid var(--tl-line);
+        padding-top: 1rem; margin-top: 1.5rem;
+    }
+    div.stButton > button[kind="primary"] {
+        background: linear-gradient(100deg, #3CBFD1, #7770E8);
+        border: 0; color: #07111E; font-weight: 850; min-height: 3rem;
+        border-radius: 11px;
+    }
+    div.stButton > button {
+        border-radius: 10px; border-color: var(--tl-line);
+    }
+    div[data-testid="stTextArea"] textarea,
+    div[data-testid="stTextInput"] input,
+    div[data-testid="stSelectbox"] > div > div {
+        background: #0B1627 !important; color: var(--tl-text) !important;
+        border-color: var(--tl-line) !important; border-radius: 10px !important;
+    }
+    [data-testid="stMetric"] {
+        background: rgba(20,34,56,.65); border: 1px solid var(--tl-line);
+        border-radius: 13px; padding: .8rem 1rem;
+    }
+    [data-testid="stMetricLabel"] { color: var(--tl-muted) !important; }
+    [data-testid="stProgressBar"] > div > div { background: linear-gradient(90deg,#3CBFD1,#7770E8); }
+    hr { border-color: var(--tl-line); }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# ---------------------------------------------------------------------
+# Sample loading
+# ---------------------------------------------------------------------
+def _normalize_samples(items: Any) -> dict[str, str]:
+    normalized: dict[str, str] = {}
     if isinstance(items, dict):
-        items = [{"label": k, "text": v} for k, v in items.items()]
-    for i, item in enumerate(items, 1):
+        items = [{"label": key, "text": value} for key, value in items.items()]
+    if not isinstance(items, list):
+        return normalized
+
+    for index, item in enumerate(items, start=1):
         if isinstance(item, str):
-            out[f"Sample {i}"] = item
+            normalized[f"Sample {index}"] = item
         elif isinstance(item, dict):
-            text = item.get("text") or item.get("message") or item.get("body") or item.get("content")
-            label = item.get("label") or item.get("title") or item.get("name") or f"Sample {i}"
-            if text:
-                out[f"{i}. {label}"] = text
-    return out
+            message = (
+                item.get("text") or item.get("message") or item.get("body")
+                or item.get("content")
+            )
+            label = item.get("label") or item.get("title") or item.get("name") or f"Sample {index}"
+            if isinstance(message, str) and message.strip():
+                normalized[f"{index}. {label}"] = message
+    return normalized
 
 
-def load_samples() -> dict:
-    # a) data_config.py - tries common variable names
+def load_samples() -> dict[str, str]:
     try:
-        import data_config
-        for name in ("SAMPLES", "SAMPLE_MESSAGES", "DATASET", "DATA", "SAMPLE_DATA", "MESSAGES"):
-            if hasattr(data_config, name):
-                samples = _normalize(getattr(data_config, name))
-                if samples:
-                    return samples
+        import data_config  # type: ignore
+        for variable_name in (
+            "SAMPLES", "SAMPLE_MESSAGES", "DATASET", "DATA",
+            "SAMPLE_DATA", "MESSAGES",
+        ):
+            if hasattr(data_config, variable_name):
+                found = _normalize_samples(getattr(data_config, variable_name))
+                if found:
+                    return found
     except Exception:
         pass
-    # b) dataset.json
+
     try:
-        data = json.loads(Path("dataset.json").read_text(encoding="utf-8"))
-        samples = _normalize(data)
-        if samples:
-            return samples
-    except Exception:
+        dataset_file = Path(__file__).resolve().parent / "dataset.json"
+        found = _normalize_samples(json.loads(dataset_file.read_text(encoding="utf-8")))
+        if found:
+            return found
+    except (OSError, json.JSONDecodeError, TypeError):
         pass
-    # c) built-in fallback
+
     return FALLBACK_SAMPLES
 
 
-# --------------------------------------------------------------------------
-# 3. Helpers for displaying results
-# --------------------------------------------------------------------------
-TIER_STYLE = {
-    "High": ("#d32f2f", "🔴"),
-    "Medium": ("#f57c00", "🟠"),
-    "Low": ("#2e7d32", "🟢"),
-}
+# ---------------------------------------------------------------------
+# Backend communication
+# ---------------------------------------------------------------------
+def api_url(path: str) -> str:
+    base = st.session_state.get("api_base_url", DEFAULT_API_URL).rstrip("/")
+    return f"{base}{path}"
 
 
-def as_text_list(items) -> list:
-    """Turn evidence (strings or dicts) into a flat list of strings."""
-    out = []
-    for it in items or []:
-        if isinstance(it, str):
-            out.append(it)
-        elif isinstance(it, dict):
-            val = it.get("phrase") or it.get("text") or it.get("evidence") or it.get("match")
-            if val:
-                out.append(str(val))
-    return out
+def check_backend() -> tuple[bool, str]:
+    try:
+        response = requests.get(api_url("/health"), timeout=5)
+        response.raise_for_status()
+        if response.json().get("status") == "ok":
+            return True, "Backend online"
+        return False, "Backend responded with an unexpected health status."
+    except requests.exceptions.ConnectionError:
+        return False, "Backend is unreachable. Confirm that FastAPI is running."
+    except requests.exceptions.Timeout:
+        return False, "Backend health check timed out."
+    except (requests.exceptions.RequestException, ValueError) as exc:
+        return False, f"Health check failed: {exc}"
 
 
-def highlight(text: str, phrases: list) -> str:
-    """Return HTML with evidence phrases highlighted (text is escaped first = safe)."""
-    safe = html.escape(text)
-    for p in sorted(set(phrases), key=len, reverse=True):
-        if not p:
-            continue
-        pattern = re.compile(re.escape(html.escape(p)), re.IGNORECASE)
-        safe = pattern.sub(
-            lambda m: f"<mark style='background:#ffe082;padding:0 3px;border-radius:3px'>{m.group(0)}</mark>",
-            safe,
-        )
-    return safe.replace("\n", "<br>")
+def analyze_message(message_text: str, channel: str) -> dict[str, Any]:
+    response = requests.post(
+        api_url("/api/analyze"),
+        json={"message_text": message_text, "channel": channel},
+        headers={"Content-Type": "application/json"},
+        timeout=REQUEST_TIMEOUT,
+    )
+    if response.status_code == 400:
+        try:
+            detail = response.json().get("detail", "The backend rejected the message.")
+        except ValueError:
+            detail = "The backend rejected the message."
+        raise ValueError(str(detail))
+    if response.status_code == 503:
+        raise RuntimeError("Backend service unavailable (HTTP 503). Check backend configuration.")
+    response.raise_for_status()
+
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise RuntimeError("Backend returned invalid JSON.") from exc
+
+    required = (
+        "risk_score", "risk_tier", "language", "summary",
+        "evidence_highlights", "recommended_action",
+    )
+    missing = [field for field in required if field not in payload]
+    if missing:
+        raise RuntimeError("Backend response is missing: " + ", ".join(missing))
+    return payload
 
 
-# --------------------------------------------------------------------------
-# 4. Page setup
-# --------------------------------------------------------------------------
-st.set_page_config(page_title="TrustLens", page_icon="🛡️", layout="wide")
+def submit_feedback(message_text: str, reason: str) -> dict[str, Any]:
+    # Confirm the exact field names with the backend lead if their request model differs.
+    response = requests.post(
+        api_url("/api/report-false-positive"),
+        json={"message_text": message_text, "reason": reason},
+        headers={"Content-Type": "application/json"},
+        timeout=REQUEST_TIMEOUT,
+    )
+    response.raise_for_status()
+    try:
+        return response.json()
+    except ValueError:
+        return {"status": "success"}
 
-st.title("🛡️ TrustLens")
-st.caption("Privacy-first phishing scanner for English, हिन्दी & Hinglish messages. "
-           "Links are analysed as text only - never opened.")
 
-if USING_STUB_EXTRACTOR or USING_STUB_SCORER:
-    missing = [n for n, s in (("extractor.py", USING_STUB_EXTRACTOR), ("scorer.py", USING_STUB_SCORER)) if s]
-    st.warning(f"⚠️ DEMO MODE: could not import {', '.join(missing)}. Using placeholder logic.")
+# ---------------------------------------------------------------------
+# Display helpers
+# ---------------------------------------------------------------------
+def safe_score(value: Any) -> int:
+    try:
+        score = int(value)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("Backend returned an invalid risk score.") from exc
+    if not 0 <= score <= 100:
+        raise RuntimeError("Backend risk score is outside the expected 0–100 range.")
+    return score
+
+
+def highlight_message(message: str, evidence_items: list[dict[str, Any]]) -> str:
+    """Highlight only exact evidence quotes returned by the backend."""
+    quotes = []
+    for item in evidence_items:
+        if isinstance(item, dict):
+            quote = item.get("quote")
+            if isinstance(quote, str) and quote and quote in message:
+                quotes.append(quote)
+
+    quotes = sorted(set(quotes), key=len, reverse=True)
+    if not quotes:
+        return html.escape(message).replace("\n", "<br>")
+
+    pattern = re.compile("|".join(re.escape(quote) for quote in quotes))
+    output, cursor = [], 0
+    for match in pattern.finditer(message):
+        output.append(html.escape(message[cursor:match.start()]))
+        output.append("<mark>" + html.escape(match.group(0)) + "</mark>")
+        cursor = match.end()
+    output.append(html.escape(message[cursor:]))
+    return "".join(output).replace("\n", "<br>")
+
+
+# ---------------------------------------------------------------------
+# Session state and page header
+# ---------------------------------------------------------------------
+if "api_base_url" not in st.session_state:
+    st.session_state.api_base_url = DEFAULT_API_URL
+if "message_text" not in st.session_state:
+    st.session_state.message_text = ""
+if "analysis_result" not in st.session_state:
+    st.session_state.analysis_result = None
+if "sample_choice" not in st.session_state:
+    st.session_state.sample_choice = ""
 
 samples = load_samples()
 
-if "msg" not in st.session_state:
-    st.session_state.msg = ""
-if "result" not in st.session_state:
-    st.session_state.result = None
+
+def load_selected_sample() -> None:
+    selected = st.session_state.get("sample_choice", "")
+    st.session_state.message_text = samples.get(selected, "")
+    st.session_state.analysis_result = None
 
 
-def on_sample_change():
-    choice = st.session_state.sample_choice
-    st.session_state.msg = samples.get(choice, "")
-    st.session_state.result = None
+st.markdown(
+    """
+    <div class="tl-hero">
+      <div class="tl-kicker">TRUSTLENS / DIGITAL SAFETY INTELLIGENCE</div>
+      <div class="tl-hero-title">See the threat. <span style="color:#63D8E8">Before you click.</span></div>
+      <div class="tl-hero-sub">
+        A privacy-first assistant for spotting phishing and social-engineering messages
+        across SMS, WhatsApp and email — including Hindi and Hinglish.
+      </div>
+      <div style="margin-top:1rem"><span class="tl-pill">Links analysed as text · Never opened</span></div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
+# ---------------------------------------------------------------------
+# Sidebar: connection controls
+# ---------------------------------------------------------------------
+with st.sidebar:
+    st.markdown("## 🛡️ TRUSTLENS")
+    st.caption("Frontend control centre")
+    st.divider()
+    st.markdown("#### Backend connection")
+    st.text_input(
+        "FastAPI base URL",
+        key="api_base_url",
+        help="Use http://localhost:8000 when the backend is running on this Mac.",
+    )
+    if st.button("↻ Check connection", use_container_width=True):
+        ok, status_text = check_backend()
+        st.session_state.backend_status = (ok, status_text)
+    if "backend_status" in st.session_state:
+        is_online, status_text = st.session_state.backend_status
+        if is_online:
+            st.success("● " + status_text)
+        else:
+            st.warning("● " + status_text)
+    else:
+        st.caption("Connection status has not been checked yet.")
 
-# --------------------------------------------------------------------------
-# 5. Layout: input (left)  |  results (right)
-# --------------------------------------------------------------------------
-left, right = st.columns([1, 1.2], gap="large")
+    st.divider()
+    st.markdown("#### API routes")
+    st.code("GET  /health\nPOST /api/analyze\nPOST /api/report-false-positive", language="text")
+    st.caption("The backend owns all scoring and risk-tier decisions.")
+    st.divider()
+    st.markdown("#### Safety reminder")
+    st.caption("Never share OTPs, UPI PINs or passwords. Verify requests through an official app or website.")
 
-with left:
-    st.subheader("1. Paste a suspicious message")
+# ---------------------------------------------------------------------
+# Main two-column workspace
+# ---------------------------------------------------------------------
+input_col, report_col = st.columns([0.94, 1.06], gap="large")
+
+with input_col:
+    st.markdown('<div class="tl-panel-label">01 / MESSAGE INPUT</div>', unsafe_allow_html=True)
+    st.markdown("### Inspect a message")
+    st.markdown('<p class="tl-muted">Paste the message exactly as you received it.</p>', unsafe_allow_html=True)
+
     st.selectbox(
-        "Or load a sample",
+        "Load a test scenario",
         options=[""] + list(samples.keys()),
         key="sample_choice",
-        on_change=on_sample_change,
-        format_func=lambda x: "— choose a sample —" if x == "" else x,
+        on_change=load_selected_sample,
+        format_func=lambda value: "Choose a sample message…" if value == "" else value,
     )
-    st.text_area("Message (SMS / Email)", key="msg", height=220,
-                 placeholder="Paste the message here...")
+    channel_label = st.selectbox("Message source", list(CHANNELS.keys()), index=0)
+    st.text_area(
+        "Message content",
+        key="message_text",
+        height=245,
+        placeholder="Example: Your bank account will be blocked. Update KYC now…",
+        help="Paste text only. Do not open suspicious links.",
+        label_visibility="visible",
+    )
+    count = len(st.session_state.message_text)
+    st.markdown(
+        f'<p class="tl-muted" style="text-align:right;font-size:.75rem">{count:,} characters</p>',
+        unsafe_allow_html=True,
+    )
 
-    if st.button("🔍 Scan message", type="primary", use_container_width=True):
-        text = st.session_state.msg.strip()
-        if not text:
-            st.error("Please paste or select a message first.")
+    scan_clicked = st.button("⌕  Analyse message", type="primary", use_container_width=True)
+    st.caption("Your message is sent to the configured backend for analysis.")
+
+    if scan_clicked:
+        submitted_text = st.session_state.message_text.strip()
+        if not submitted_text:
+            st.warning("Paste a message or select a sample before scanning.")
         else:
-            try:
-                signals = extract_signals(text)
-                result = calculate_score(signals)
-                st.session_state.result = {"text": text, "signals": signals, "score": result}
-            except Exception as e:
-                st.session_state.result = None
-                st.error(f"Something went wrong while scanning: {e}")
+            with st.spinner("Analysing message signals…"):
+                try:
+                    result = analyze_message(submitted_text, CHANNELS[channel_label])
+                    st.session_state.analysis_result = {
+                        "message_text": submitted_text,
+                        "channel": CHANNELS[channel_label],
+                        "result": result,
+                    }
+                except ValueError as exc:
+                    st.session_state.analysis_result = None
+                    st.error(f"Invalid request: {exc}")
+                except requests.exceptions.ConnectionError:
+                    st.session_state.analysis_result = None
+                    st.error(
+                        "Cannot reach FastAPI. Check that the backend is running and "
+                        f"that the URL is correct: {st.session_state.api_base_url}"
+                    )
+                except requests.exceptions.Timeout:
+                    st.session_state.analysis_result = None
+                    st.error("The analysis request timed out. Please try again.")
+                except requests.exceptions.HTTPError as exc:
+                    st.session_state.analysis_result = None
+                    status = exc.response.status_code if exc.response is not None else "unknown"
+                    st.error(f"Backend returned HTTP {status}. Check the backend logs.")
+                except (requests.exceptions.RequestException, RuntimeError) as exc:
+                    st.session_state.analysis_result = None
+                    st.error(f"Analysis failed: {exc}")
 
-with right:
-    st.subheader("2. Result")
-    data = st.session_state.result
+with report_col:
+    st.markdown('<div class="tl-panel-label">02 / THREAT ASSESSMENT</div>', unsafe_allow_html=True)
+    st.markdown("### Analysis report")
+    data = st.session_state.analysis_result
 
     if not data:
-        st.info("Scan a message to see the risk tier, evidence and safety steps.")
-    else:
-        res = data["score"]
-        score = int(res.get("score", 0))
-        tier = res.get("tier", "Low")
-        color, icon = TIER_STYLE.get(tier, TIER_STYLE["Low"])
-
-        # Risk card
         st.markdown(
-            f"""
-            <div style="border-left:8px solid {color};background:{color}15;
-                        padding:16px 20px;border-radius:8px;margin-bottom:12px">
-              <div style="font-size:14px;color:#555">RISK TIER</div>
-              <div style="font-size:34px;font-weight:700;color:{color}">{icon} {tier.upper()}</div>
-              <div style="font-size:16px">Risk score: <b>{score}/100</b></div>
+            """
+            <div class="tl-panel" style="min-height:230px;display:flex;flex-direction:column;justify-content:center">
+              <div style="font-size:2rem;margin-bottom:.55rem">◈</div>
+              <div style="font-size:1.08rem;font-weight:750">Your report will appear here</div>
+              <p class="tl-muted" style="margin:.35rem 0 0 0">
+                Submit a message to see its risk tier, exact evidence and recommended next steps.
+              </p>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        st.progress(min(max(score, 0), 100) / 100)
+        st.markdown("#### What TRUSTLENS looks for")
+        check_a, check_b = st.columns(2)
+        with check_a:
+            st.markdown("**⌁ Suspicious links**")
+            st.caption("Unusual domains and link patterns")
+            st.markdown("**◷ Artificial urgency**")
+            st.caption("Threats, countdowns and pressure")
+        with check_b:
+            st.markdown("**◎ Sensitive requests**")
+            st.caption("OTP, KYC and account verification")
+            st.markdown("**文 Regional context**")
+            st.caption("Hindi, Hinglish and local scam cues")
+    else:
+        result = data["result"]
+        try:
+            score = safe_score(result["risk_score"])
+        except RuntimeError as exc:
+            score = None
+            st.error(str(exc))
 
-        # Evidence highlighting
-        evidence = as_text_list(res.get("evidence"))
-        signals = data["signals"]
-        extra = as_text_list(signals.get("urgency_phrases")) + as_text_list(signals.get("urls"))
-        st.markdown("**🔎 Evidence found in the message**")
+        tier = str(result.get("risk_tier", "Unknown"))
+        style = TIER_STYLE.get(tier, {"color": "#9AAAC0", "soft": "rgba(154,170,192,.1)", "icon": "●"})
+
+        if score is not None:
+            st.markdown(
+                f"""
+                <div class="tl-risk" style="border-left:5px solid {style['color']}">
+                  <div class="tl-panel-label">RISK CLASSIFICATION</div>
+                  <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+                    <div>
+                      <div style="font-size:1.55rem;font-weight:850;color:{style['color']}">
+                        {style['icon']} {html.escape(tier)}
+                      </div>
+                      <div class="tl-muted" style="margin-top:.35rem">Backend-generated assessment</div>
+                    </div>
+                    <div style="text-align:right">
+                      <div class="tl-risk-score" style="color:{style['color']}">{score}<span style="font-size:1rem;color:#91A2BC"> / 100</span></div>
+                      <div class="tl-muted" style="font-size:.75rem;margin-top:.25rem">RISK SCORE</div>
+                    </div>
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.progress(score / 100)
+
+        metric_a, metric_b = st.columns(2)
+        with metric_a:
+            st.metric("Detected language", str(result.get("language", "Not specified")))
+        with metric_b:
+            st.metric("Source channel", data["channel"].capitalize())
+
+        summary = result.get("summary")
+        if summary:
+            st.markdown("#### Assessment summary")
+            st.markdown(f'<div class="tl-panel">{html.escape(str(summary))}</div>', unsafe_allow_html=True)
+
+        evidence = result.get("evidence_highlights") or []
+        if not isinstance(evidence, list):
+            evidence = []
+
+        st.markdown("#### Evidence in the message")
         st.markdown(
-            f"<div style='padding:12px;border:1px solid #ddd;border-radius:8px'>"
-            f"{highlight(data['text'], evidence + extra)}</div>",
+            '<div class="tl-evidence">' +
+            highlight_message(data["message_text"], evidence) +
+            '</div>',
             unsafe_allow_html=True,
         )
 
         if evidence:
-            st.markdown("**Cited signals:**")
-            for e in evidence:
-                st.markdown(f"- `{e}`")
+            st.markdown("#### Why these signals matter")
+            for item in evidence:
+                if not isinstance(item, dict):
+                    continue
+                quote = str(item.get("quote", "Suspicious text"))
+                evidence_type = str(item.get("type", "Suspicious indicator"))
+                reason = str(item.get("reason", ""))
+                st.markdown(
+                    f'<div class="tl-panel" style="padding:.85rem 1rem">'
+                    f'<div style="color:#63D8E8;font-size:.72rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase">{html.escape(evidence_type)}</div>'
+                    f'<div style="font-weight:750;margin:.3rem 0">{html.escape(quote)}</div>'
+                    f'<div class="tl-muted">{html.escape(reason)}</div></div>',
+                    unsafe_allow_html=True,
+                )
+        else:
+            st.success("No suspicious text indicators were highlighted by the backend.")
 
-        reasons = as_text_list(res.get("reasons"))
-        if reasons:
-            st.markdown("**Why this tier?**")
-            for r in reasons:
-                st.markdown(f"- {r}")
+        recommended_action = result.get("recommended_action")
+        if recommended_action:
+            st.markdown("#### Recommended next step")
+            st.info(str(recommended_action), icon="🛡️")
 
-        # Safety guidance
-        steps = as_text_list(res.get("steps") or res.get("guidance") or res.get("actions"))
-        if steps:
-            st.markdown("**✅ What to do now**")
-            for s in steps:
-                st.markdown(f"- {s}")
+        with st.expander("View raw API response"):
+            st.json(result)
 
-        with st.expander("Raw extracted signals (for judges / debugging)"):
-            st.json(signals)
-
-        # Challenge loop
         st.divider()
-        st.markdown("**Think this result is wrong?**")
-        reason = st.selectbox(
-            "Reason",
-            ["This is a legitimate message (false alarm)",
-             "This is a scam but risk is too low",
-             "Wrong language / phrase detected",
-             "Other"],
-            key="fb_reason",
+        st.markdown("#### Help improve TRUSTLENS")
+        st.caption("If this result seems incorrect, send feedback to the backend.")
+        feedback_reason = st.selectbox(
+            "Feedback reason",
+            [
+                "This is a legitimate message (false alarm)",
+                "This is a scam but the risk score is too low",
+                "Wrong language or phrase detected",
+                "Other",
+            ],
+            key="feedback_reason",
         )
-        if st.button("🚩 Challenge this result"):
+        if st.button("↗  Submit feedback", use_container_width=True):
             try:
-                save_feedback(data["text"], reason)
-                st.success("Thanks! Your feedback was saved and will help refine our rules.")
-            except Exception as e:
-                st.error(f"Could not save feedback: {e}")
+                with st.spinner("Sending feedback…"):
+                    feedback_result = submit_feedback(data["message_text"], feedback_reason)
+                if feedback_result.get("status") == "success":
+                    st.success("Feedback recorded. Thank you.")
+                else:
+                    st.success("Feedback submitted.")
+            except requests.exceptions.ConnectionError:
+                st.error("Cannot reach the backend. Check that FastAPI is running.")
+            except requests.exceptions.Timeout:
+                st.error("Feedback request timed out.")
+            except requests.exceptions.HTTPError as exc:
+                status = exc.response.status_code if exc.response is not None else "unknown"
+                st.error(f"Feedback was not accepted (HTTP {status}). Confirm the feedback API contract.")
+            except requests.exceptions.RequestException as exc:
+                st.error(f"Could not submit feedback: {exc}")
 
-st.divider()
-st.caption("TrustLens • deterministic & explainable • no links are ever opened • "
-           "Never share OTPs. Report fraud: call 1930 or visit cybercrime.gov.in")
+st.markdown(
+    """
+    <div class="tl-foot">
+      <b>TRUSTLENS</b> · Explainable phishing and social-engineering detection for Indian users<br>
+      Stay cautious. Never share your OTP, UPI PIN or password. If you lose money to cyber fraud in India,
+      call <b>1930</b> or report it at <b>cybercrime.gov.in</b>.
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
