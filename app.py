@@ -388,10 +388,8 @@ with st.sidebar:
     else:
         st.caption("Connection status has not been checked yet.")
 
-    st.divider()
-    st.markdown("#### API routes")
-    st.code("GET  /health\nPOST /api/analyze\nPOST /api/report-false-positive", language="text")
-    st.caption("The backend owns all scoring and risk-tier decisions.")
+   
+   
     st.divider()
     st.markdown("#### Safety reminder")
     st.caption("Never share OTPs, UPI PINs or passwords. Verify requests through an official app or website.")
