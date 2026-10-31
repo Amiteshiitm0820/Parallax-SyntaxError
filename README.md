@@ -42,6 +42,8 @@ Instead of simply labelling a message as safe or dangerous, TRUSTLENS provides:
 
 ### Live Application
 
+Run the backend link first then open the frontend link
+
 [Try TRUSTLENS](https://trustlens-frontend-t3lg.onrender.com/)
 
 [Backend API](https://trustlens-backend-q0oj.onrender.com/)
