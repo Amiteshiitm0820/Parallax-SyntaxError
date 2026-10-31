@@ -3,3 +3,4 @@
 __pycache__/
 .pytest_cache/
 data/
+eval/rules_only_results.csv
