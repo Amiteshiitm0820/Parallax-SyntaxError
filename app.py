@@ -11,7 +11,6 @@ the backend; this file does not calculate them.
 from __future__ import annotations
 
 import html
-import os
 import json
 import re
 from pathlib import Path
@@ -19,7 +18,6 @@ from typing import Any
 
 import requests
 import streamlit as st
-REQUEST_TIMEOUT = 30
 
 # ---------------------------------------------------------------------
 # Configuration
@@ -31,11 +29,8 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-DEFAULT_API_URL = os.getenv(
-    "API_BASE_URL",
-    "http://localhost:8000"
-)
-QUEST_TIMEOUT = 30
+DEFAULT_API_URL = "http://localhost:8000"
+REQUEST_TIMEOUT = 30
 
 CHANNELS = {
     "SMS": "sms",
@@ -596,8 +591,10 @@ with st.sidebar:
     else:
         st.caption("Connection status has not been checked yet.")
 
-   
-   
+    st.divider()
+    st.markdown("#### API routes")
+    st.code("GET  /health\nPOST /api/analyze\nPOST /api/report-false-positive", language="text")
+    st.caption("The backend owns all scoring and risk-tier decisions.")
     st.divider()
     st.markdown("#### Safety reminder")
     st.caption(
@@ -740,20 +737,25 @@ with tab_sms:
             "Safe OTP · English": "Your SBI OTP for transaction of Rs. 500 is 847291. Do not share this with anyone.",
         }
 
-        preset_choice = st.selectbox(
+        def on_preset_change():
+            chosen = st.session_state.sms_preset
+            if chosen:
+                st.session_state.sms_input_area = SMS_PRESETS[chosen]
+                st.session_state.sms_result = None
+
+        st.selectbox(
             "Load a preset SMS",
             options=[""] + list(SMS_PRESETS.keys()),
             format_func=lambda x: "Choose a preset…" if x == "" else x,
             key="sms_preset",
+            on_change=on_preset_change,
         )
-        if preset_choice and SMS_PRESETS.get(preset_choice) != st.session_state.sms_text:
-            st.session_state.sms_text = SMS_PRESETS[preset_choice]
-            st.session_state.sms_result = None
-            st.rerun()
+
+        if "sms_input_area" not in st.session_state:
+            st.session_state.sms_input_area = ""
 
         sms_input = st.text_area(
             "SMS content",
-            value=st.session_state.sms_text,
             height=200,
             placeholder="Paste your SMS here…",
             key="sms_input_area",
