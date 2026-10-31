@@ -46,7 +46,7 @@ Run the backend link first then open the frontend link
 
 [Try TRUSTLENS](https://trustlens-frontend-t3lg.onrender.com/)
 
-[Backend API](https://trustlens-backend-q0oj.onrender.com/)
+[Backend API](https://trustlens-backend-q0oj.onrender.com/docs)
 
 _<img width="1919" height="934" alt="image" src="https://github.com/user-attachments/assets/12f438cc-140e-4643-a768-3b05709546a5" />
 _
