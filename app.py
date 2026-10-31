@@ -34,7 +34,7 @@ DEFAULT_API_URL = os.getenv(
     "API_BASE_URL",
     "http://localhost:8000"
 )
-REQUEST_TIMEOUT = 30
+QUEST_TIMEOUT = 30
 
 CHANNELS = {
     "SMS": "sms",
