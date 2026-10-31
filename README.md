@@ -46,7 +46,8 @@ Instead of simply labelling a message as safe or dangerous, TRUSTLENS provides:
 
 [Backend API](https://trustlens-backend-q0oj.onrender.com/)
 
-_Add screenshots of the home screen, analysis input and a completed threat analysis here._
+_<img width="1919" height="934" alt="image" src="https://github.com/user-attachments/assets/12f438cc-140e-4643-a768-3b05709546a5" />
+_
 
 ---
 
