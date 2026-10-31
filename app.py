@@ -19,6 +19,7 @@ from typing import Any
 
 import requests
 import streamlit as st
+REQUEST_TIMEOUT = 30
 
 # ---------------------------------------------------------------------
 # Configuration
